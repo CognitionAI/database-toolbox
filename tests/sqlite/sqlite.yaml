@@ -1,0 +1,36 @@
+sources:
+  sqlite_source:
+    kind: sqlite
+    database: ${SQLITE_FILE}
+
+tools:
+  list_tables:
+    kind: sqlite-sql
+    source: sqlite_source
+    description: List SQLite tables via sqlite_master
+    parameters:
+      - name: table_names
+        type: string
+        description: Optional comma-separated list of table names
+    statement: |
+      SELECT name AS table_name
+      FROM sqlite_master
+      WHERE type = 'table'
+        AND (
+          :table_names IS NULL
+          OR :table_names = ''
+          OR (',' || :table_names || ',') LIKE ('%,' || name || ',%')
+        )
+      ORDER BY name;
+
+  execute_sql:
+    kind: sqlite-sql
+    source: sqlite_source
+    description: Execute arbitrary SQL queries against SQLite
+    parameters:
+      - name: sql
+        type: string
+        description: The SQL query to execute
+    statement: "{{sql}}"
+
+

@@ -1,0 +1,10 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: test-sqlserver-db
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Passw0rd"
+    ports:
+      - "1433:1433"
+

@@ -1,0 +1,32 @@
+# Security scan results
+trivy-results-*/
+security-report/
+
+# Build artifacts
+*.log
+*.tmp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Personal config files that shouldn't be in repo
+~/
+~/.claude*
+.claude*
+
+*.credentials.json

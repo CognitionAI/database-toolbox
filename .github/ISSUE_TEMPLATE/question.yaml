@@ -1,0 +1,150 @@
+name: "❓ Question / Support"
+description: Ask a question or get help using the database toolbox
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help using the MCP Database Toolbox? We're here to assist!
+        
+        **Before asking:**
+        - Check the [README](../README.md) for examples
+        - Search [existing issues](../issues) for similar questions
+        - Review the database-specific documentation
+        
+        For general MCP protocol questions, consider the [MCP community resources](https://modelcontextprotocol.io).
+
+  - type: dropdown
+    attributes:
+      label: Question Category
+      description: What type of help do you need?
+      options:
+        - Getting Started
+        - Configuration Help
+        - Connection Issues
+        - MCP Protocol Usage
+        - Docker/Container Setup
+        - Environment Variables
+        - Authentication/Credentials
+        - Performance Optimization
+        - Architecture/Platform Issues
+        - Documentation Clarification
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Which database?
+      description: Which database toolbox are you asking about?
+      options:
+        - AlloyDB for PostgreSQL
+        - BigQuery
+        - Bigtable
+        - Cloud SQL (MySQL)
+        - Cloud SQL (PostgreSQL)
+        - Cloud SQL (SQL Server)
+        - Couchbase
+        - Dataplex
+        - Dgraph
+        - Firestore
+        - Looker
+        - MongoDB
+        - MySQL
+        - Neo4j
+        - PostgreSQL
+        - Redis
+        - Redshift
+        - Spanner
+        - SQL Server
+        - SQLite
+        - TiDB
+        - Valkey
+        - General (not database-specific)
+        - Multiple databases
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Your Question
+      description: Ask your question clearly and concisely
+      placeholder: |
+        How do I configure environment variables for connecting to a PostgreSQL database?
+        What's the difference between --prebuilt and --tools-file flags?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What have you tried?
+      description: Describe what you've attempted so far
+      placeholder: |
+        - I tried setting DATABASE_HOST but got error X
+        - I read the README section on Y but it's unclear
+        - I successfully connected to database A but failed with database B
+  
+  - type: textarea
+    attributes:
+      label: Your Current Configuration
+      description: Share relevant configuration (redact sensitive credentials)
+      placeholder: |
+        Docker command:
+        ```bash
+        docker run --rm -i \
+          -e DATABASE_HOST=localhost \
+          -e DATABASE_PORT=5432 \
+          ghcr.io/org/postgres-toolbox:latest \
+          --prebuilt postgres \
+          --stdio
+        ```
+        
+        MCP client config:
+        ```json
+        {
+          "mcpServers": {
+            "postgres": {
+              "command": "docker",
+              "args": ["run", ...]
+            }
+          }
+        }
+        ```
+      render: bash
+
+  - type: textarea
+    attributes:
+      label: Environment Details
+      description: Provide environment information if relevant
+      placeholder: |
+        - OS: macOS 14.0
+        - Docker Version: 24.0.5
+        - Image Version: v1.2.3
+        - MCP Client: Claude Desktop
+      value: |
+        - OS: 
+        - Docker Version: 
+        - Image Version: 
+        - MCP Client: 
+
+  - type: textarea
+    attributes:
+      label: Expected Outcome
+      description: What are you trying to achieve?
+      placeholder: I want to be able to query my PostgreSQL database through the MCP interface
+
+  - type: checkboxes
+    attributes:
+      label: Documentation
+      description: Would better documentation have prevented this question?
+      options:
+        - label: Yes, this should be documented in the README
+        - label: Yes, this should be added to a troubleshooting guide
+        - label: The documentation exists but was unclear
+        - label: I couldn't find relevant documentation
+
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful

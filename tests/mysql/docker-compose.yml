@@ -1,0 +1,17 @@
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8
+    container_name: test-mysql-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "testuser", "-ptestpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

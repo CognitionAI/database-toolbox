@@ -1,0 +1,168 @@
+name: "🗄️ New Database Support"
+description: Request support for a new database system
+labels: ["new-database", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for requesting support for a new database!
+        
+        Adding a new database requires:
+        - Database client/driver compatibility
+        - MCP protocol integration
+        - Docker image configuration
+        - Documentation and examples
+        - Testing infrastructure
+        
+        Please provide detailed information to help us evaluate and implement this database.
+
+  - type: input
+    attributes:
+      label: Database Name
+      description: What database system do you want to add?
+      placeholder: "e.g., Cassandra, CockroachDB, ClickHouse"
+    validations:
+      required: true
+  
+  - type: dropdown
+    attributes:
+      label: Database Type
+      description: What type of database is this?
+      options:
+        - SQL (Relational)
+        - NoSQL (Document)
+        - NoSQL (Key-Value)
+        - NoSQL (Wide-Column)
+        - Graph
+        - Time-Series
+        - Vector
+        - Cache/In-Memory
+        - Analytics/Data Warehouse
+        - Search Engine
+        - Other
+    validations:
+      required: true
+  
+  - type: dropdown
+    attributes:
+      label: Hosting Model
+      description: How is this database typically hosted?
+      options:
+        - Cloud-managed service (AWS/GCP/Azure)
+        - Self-hosted / On-premises
+        - Both cloud and self-hosted
+        - Serverless
+    validations:
+      required: true
+  
+  - type: input
+    attributes:
+      label: Official Website / Documentation
+      description: Link to the database's official website
+      placeholder: "https://example.com/database"
+    validations:
+      required: true
+  
+  - type: textarea
+    attributes:
+      label: Client Libraries / Drivers
+      description: What client libraries or drivers are available? Include language support.
+      placeholder: |
+        - Python: `pip install database-driver`
+        - Go: `go get github.com/database/client`
+        - Node.js: `npm install database-client`
+        - Official CLI tool: `database-cli`
+    validations:
+      required: true
+  
+  - type: textarea
+    attributes:
+      label: Connection Parameters
+      description: What parameters are needed to connect? (hosts, ports, credentials, etc.)
+      placeholder: |
+        - Host/Endpoint
+        - Port (default: 9042)
+        - Username/Password
+        - Database/Keyspace name
+        - SSL/TLS options
+        - Authentication method
+    validations:
+      required: true
+  
+  - type: textarea
+    attributes:
+      label: Use Case
+      description: Why do you need this database? What will you use it for?
+      placeholder: |
+        I'm building an application that uses Cassandra for...
+        This database is critical because...
+    validations:
+      required: true
+  
+  - type: textarea
+    attributes:
+      label: MCP Capabilities Needed
+      description: What database operations should be available through MCP?
+      placeholder: |
+        - Execute queries (SELECT, INSERT, UPDATE, DELETE)
+        - Schema management (CREATE, ALTER, DROP)
+        - Transaction support
+        - Batch operations
+        - Admin functions (backup, users)
+      value: |
+        - [ ] Execute queries
+        - [ ] Schema management
+        - [ ] Transaction support
+        - [ ] Batch operations
+        - [ ] Admin functions
+  
+  - type: dropdown
+    attributes:
+      label: Priority / Urgency
+      description: How critical is this database support for you?
+      options:
+        - Nice to have
+        - Would be helpful
+        - Important for my project
+        - Critical - blocking my adoption
+    validations:
+      required: true
+  
+  - type: input
+    attributes:
+      label: Estimated User Base
+      description: Do you know of others who would benefit from this database?
+      placeholder: "e.g., My team of 5 developers, My company's 50+ engineers"
+  
+  - type: textarea
+    attributes:
+      label: Example Docker Configuration
+      description: If you have ideas on how to configure this, share them here
+      placeholder: |
+        FROM base-image
+        RUN apt-get install database-client
+        COPY tools.yaml /config/
+        ...
+      render: dockerfile
+  
+  - type: textarea
+    attributes:
+      label: Similar Existing Database
+      description: Is there an existing database in this project similar to what you're requesting?
+      placeholder: "e.g., Similar to PostgreSQL but with distributed capabilities"
+  
+  - type: checkboxes
+    attributes:
+      label: Contribution Interest
+      description: Would you be willing to help implement this?
+      options:
+        - label: I can provide a sample Dockerfile
+        - label: I can test the implementation
+        - label: I can write documentation/examples
+        - label: I can submit a complete PR
+        - label: I can provide access to a test database instance
+  
+  - type: textarea
+    attributes:
+      label: Additional Information
+      description: Any other relevant details, links, or context

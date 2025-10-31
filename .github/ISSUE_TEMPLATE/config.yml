@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/usacognition/database-toolbox/blob/main/README.md
+    about: Read the comprehensive README with examples for all databases
+  - name: 💬 Discussions
+    url: https://github.com/usacognition/database-toolbox/discussions
+    about: Community discussions, Q&A, and general chat
+  - name: 🔒 Security Issue
+    url: https://github.com/usacognition/database-toolbox/security/advisories/new
+    about: Report a security vulnerability privately
