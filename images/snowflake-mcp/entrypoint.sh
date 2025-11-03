@@ -29,40 +29,51 @@ usage() {
     cat <<EOF
 Usage: docker run [docker-options] mcp-snowflake:local [options]
 
-Required arguments:
-  --account ACCOUNT       Snowflake account identifier
-  --user USER            Snowflake username
+Configuration can be provided via environment variables or command-line arguments.
+Command-line arguments override environment variables.
+
+Required (via env var or CLI):
+  --account ACCOUNT              Snowflake account identifier
+  SNOWFLAKE_ACCOUNT              Environment variable for account
+
+  --user USER                    Snowflake username
+  SNOWFLAKE_USER                 Environment variable for user
 
 Authentication (provide ONE of these):
-  --password PASSWORD    Password (or use SNOWFLAKE_PASSWORD env var)
-  SNOWFLAKE_PRIVATE_KEY  Private key PEM content (env var only)
+  --password PASSWORD            Password
+  SNOWFLAKE_PASSWORD             Password env var
+  SNOWFLAKE_PRIVATE_KEY          Private key PEM content (env var only)
 
-Optional arguments:
-  --role ROLE            Snowflake role
-  --warehouse WAREHOUSE  Snowflake warehouse
-  --database DATABASE    Snowflake database
-  --schema SCHEMA        Snowflake schema
-  --transport TYPE       Transport type (default: stdio)
+Optional (via env var or CLI):
+  --role ROLE                    Snowflake role
+  SNOWFLAKE_ROLE                 Environment variable for role
 
-Environment variables:
-  SNOWFLAKE_PASSWORD              Password for authentication
-  SNOWFLAKE_PRIVATE_KEY           Unencrypted private key PEM content for key-pair auth
+  --warehouse WAREHOUSE          Snowflake warehouse
+  SNOWFLAKE_WAREHOUSE            Environment variable for warehouse
+
+  --database DATABASE            Snowflake database
+  SNOWFLAKE_DATABASE             Environment variable for database
+
+  --schema SCHEMA                Snowflake schema
+  SNOWFLAKE_SCHEMA               Environment variable for schema
+
+  --transport TYPE               Transport type (default: stdio)
 
 EOF
     exit 1
 }
 
-# Initialize variables
-ACCOUNT=""
-USER=""
-PASSWORD=""
-ROLE=""
-WAREHOUSE=""
-DATABASE=""
-SCHEMA=""
+# Initialize variables from environment or defaults
+ACCOUNT="${SNOWFLAKE_ACCOUNT:-}"
+USER="${SNOWFLAKE_USER:-}"
+PASSWORD="${SNOWFLAKE_PASSWORD:-}"
+ROLE="${SNOWFLAKE_ROLE:-}"
+WAREHOUSE="${SNOWFLAKE_WAREHOUSE:-}"
+DATABASE="${SNOWFLAKE_DATABASE:-}"
+SCHEMA="${SNOWFLAKE_SCHEMA:-}"
 TRANSPORT="stdio"
 
-# Parse command-line arguments
+# Parse command-line arguments (override environment variables)
 while [[ $# -gt 0 ]]; do
     case $1 in
         --account)
@@ -107,19 +118,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check for password from environment if not provided via CLI
-if [[ -z "$PASSWORD" ]] && [[ -n "${SNOWFLAKE_PASSWORD:-}" ]]; then
-    PASSWORD="$SNOWFLAKE_PASSWORD"
-fi
-
 # Validate required parameters
 if [[ -z "$ACCOUNT" ]]; then
-    log_error "Missing required parameter: --account"
+    log_error "Missing required parameter: --account or SNOWFLAKE_ACCOUNT environment variable"
     usage
 fi
 
 if [[ -z "$USER" ]]; then
-    log_error "Missing required parameter: --user"
+    log_error "Missing required parameter: --user or SNOWFLAKE_USER environment variable"
     usage
 fi
 
