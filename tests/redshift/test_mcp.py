@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simple MCP test for Amazon Redshift
-Uses a custom tools file as described in README and tests stdio mode.
+Tests the custom Redshift Docker image built from images/redshift/Dockerfile
 """
 
 import json
@@ -28,6 +28,30 @@ def load_env_file(env_path: Path) -> dict:
     return values
 
 
+def build_redshift_image() -> str:
+    """Build the custom Redshift Docker image and return the image tag"""
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent.parent
+    redshift_image_dir = repo_root / "images" / "redshift"
+    
+    image_tag = "redshift-toolbox:test"
+    
+    print(f"Building Redshift Docker image from {redshift_image_dir}...")
+    build_cmd = [
+        "docker", "build",
+        "-t", image_tag,
+        str(redshift_image_dir),
+    ]
+    
+    result = subprocess.run(build_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"✗ Failed to build Docker image: {result.stderr}")
+        sys.exit(1)
+    
+    print(f"✓ Built Docker image: {image_tag}")
+    return image_tag
+
+
 def test_mcp_redshift() -> bool:
     print("Testing Redshift MCP server (stdio)...")
 
@@ -41,22 +65,23 @@ def test_mcp_redshift() -> bool:
     redshift_user = (env_file.get("REDSHIFT_USER") or env_file.get("POSTGRES_USER") or "").strip()
     redshift_password = (env_file.get("REDSHIFT_PASSWORD") or env_file.get("POSTGRES_PASSWORD") or "").strip()
     redshift_port = (env_file.get("REDSHIFT_PORT") or env_file.get("POSTGRES_PORT") or "5439").strip() or "5439"
-    redshift_tools_file = env_file.get("REDSHIFT_TOOLS_FILE", "").strip()
 
     missing = [name for name, val in [
         ("REDSHIFT_HOST", redshift_host),
         ("REDSHIFT_DATABASE", redshift_database),
         ("REDSHIFT_USER", redshift_user),
         ("REDSHIFT_PASSWORD", redshift_password),
-        ("REDSHIFT_TOOLS_FILE", redshift_tools_file),
     ] if not val]
     if missing:
         print(f"✗ Missing required variables in .env: {', '.join(missing)}")
         return False
 
-    DOCKER_IMAGE = "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest"
+    # Build the custom Redshift Docker image
+    docker_image = build_redshift_image()
 
     # Build docker run command
+    # The custom Redshift image has the tools file baked in and uses a custom entrypoint
+    # that automatically passes --tools-file /config/redshift.yaml, so we just need --stdio
     cmd = [
         "docker", "run", "--rm", "-i",
         "-e", "POSTGRES_HOST",
@@ -64,9 +89,7 @@ def test_mcp_redshift() -> bool:
         "-e", "POSTGRES_USER",
         "-e", "POSTGRES_PASSWORD",
         "-e", "POSTGRES_PORT",
-        "-v", f"{redshift_tools_file}:/config/redshift.yaml",
-        DOCKER_IMAGE,
-        "--tools-file", "/config/redshift.yaml",
+        docker_image,
         "--stdio",
     ]
 
@@ -150,7 +173,45 @@ def test_mcp_redshift() -> bool:
         tool_names = [tool.get("name", "unknown") for tool in tools]
         print("✓ Available tools: " + ", ".join(tool_names))
 
-        # Optionally try execute_sql if present
+        # Verify both required tools are present
+        if "list_tables" not in tool_names:
+            print("✗ Required tool 'list_tables' not found")
+            return False
+        if "execute_sql" not in tool_names:
+            print("✗ Required tool 'execute_sql' not found")
+            return False
+
+        # Test list_tables tool
+        if "list_tables" in tool_names:
+            list_tables_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "list_tables",
+                    "arguments": {"table_names": ""},
+                },
+                "id": 3,
+            }
+            process.stdin.write(json.dumps(list_tables_request) + "\n")
+            process.stdin.flush()
+            list_tables_line = process.stdout.readline()
+            if list_tables_line:
+                try:
+                    list_tables_resp = json.loads(list_tables_line)
+                    if "result" in list_tables_resp:
+                        content_count = len(list_tables_resp.get("result", {}).get("content", []))
+                        print(f"✓ list_tables call successful ({content_count} columns returned)")
+                    else:
+                        print(f"✗ list_tables returned error: {list_tables_resp.get('error', 'Unknown error')}")
+                        return False
+                except json.JSONDecodeError:
+                    print(f"✗ list_tables returned non-JSON: {list_tables_line[:200]}")
+                    return False
+            else:
+                print("✗ No response from list_tables")
+                return False
+
+        # Test execute_sql tool
         if "execute_sql" in tool_names:
             execute_sql_request = {
                 "jsonrpc": "2.0",
@@ -159,7 +220,7 @@ def test_mcp_redshift() -> bool:
                     "name": "execute_sql",
                     "arguments": {"sql": "SELECT current_date;"},
                 },
-                "id": 3,
+                "id": 4,
             }
             process.stdin.write(json.dumps(execute_sql_request) + "\n")
             process.stdin.flush()
@@ -169,8 +230,15 @@ def test_mcp_redshift() -> bool:
                     exec_resp = json.loads(exec_line)
                     if "result" in exec_resp:
                         print("✓ execute_sql call successful")
+                    else:
+                        print(f"✗ execute_sql returned error: {exec_resp.get('error', 'Unknown error')}")
+                        return False
                 except json.JSONDecodeError:
                     print(f"✗ execute_sql returned non-JSON: {exec_line[:200]}")
+                    return False
+            else:
+                print("✗ No response from execute_sql")
+                return False
 
         return len(tools) > 0
 

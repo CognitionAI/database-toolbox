@@ -30,6 +30,40 @@ check_redshift_tools_file() {
     fi
 }
 
+# Function to map REDSHIFT_* environment variables to POSTGRES_*
+# The toolbox uses POSTGRES_* internally for the postgres kind source
+map_redshift_to_postgres_vars() {
+    # Map REDSHIFT_HOST to POSTGRES_HOST if POSTGRES_HOST is not set
+    if [[ -n "${REDSHIFT_HOST:-}" && -z "${POSTGRES_HOST:-}" ]]; then
+        export POSTGRES_HOST="${REDSHIFT_HOST}"
+    fi
+    
+    # Map REDSHIFT_PORT to POSTGRES_PORT if POSTGRES_PORT is not set
+    if [[ -n "${REDSHIFT_PORT:-}" && -z "${POSTGRES_PORT:-}" ]]; then
+        export POSTGRES_PORT="${REDSHIFT_PORT}"
+    fi
+    
+    # Map REDSHIFT_DATABASE to POSTGRES_DATABASE if POSTGRES_DATABASE is not set
+    if [[ -n "${REDSHIFT_DATABASE:-}" && -z "${POSTGRES_DATABASE:-}" ]]; then
+        export POSTGRES_DATABASE="${REDSHIFT_DATABASE}"
+    fi
+    
+    # Map REDSHIFT_USER to POSTGRES_USER if POSTGRES_USER is not set
+    if [[ -n "${REDSHIFT_USER:-}" && -z "${POSTGRES_USER:-}" ]]; then
+        export POSTGRES_USER="${REDSHIFT_USER}"
+    fi
+    
+    # Map REDSHIFT_PASSWORD to POSTGRES_PASSWORD if POSTGRES_PASSWORD is not set
+    if [[ -n "${REDSHIFT_PASSWORD:-}" && -z "${POSTGRES_PASSWORD:-}" ]]; then
+        export POSTGRES_PASSWORD="${REDSHIFT_PASSWORD}"
+    fi
+    
+    # Map REDSHIFT_SSL_MODE to POSTGRES_SSL_MODE if POSTGRES_SSL_MODE is not set
+    if [[ -n "${REDSHIFT_SSL_MODE:-}" && -z "${POSTGRES_SSL_MODE:-}" ]]; then
+        export POSTGRES_SSL_MODE="${REDSHIFT_SSL_MODE}"
+    fi
+}
+
 # Main execution
 main() {
     log "Starting Redshift custom toolbox entrypoint"
@@ -40,9 +74,12 @@ main() {
     # Check if Redshift tools file exists
     check_redshift_tools_file
     
-    # Execute the original toolbox with Redshift tools file and passed arguments
-    log "Executing Redshift toolbox with arguments: $*"
-    exec "$ORIGINAL_ENTRYPOINT" "--tools-file" "$REDSHIFT_TOOLS_FILE" "$@"
+    # Map REDSHIFT_* environment variables to POSTGRES_*
+    map_redshift_to_postgres_vars
+    
+    # Execute the original toolbox with Redshift tools file, --stdio, and any additional arguments
+    log "Executing Redshift toolbox with arguments: --tools-file $REDSHIFT_TOOLS_FILE --stdio $*"
+    exec "$ORIGINAL_ENTRYPOINT" "--tools-file" "$REDSHIFT_TOOLS_FILE" "--stdio" "$@"
 }
 
 # Handle edge cases

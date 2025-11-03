@@ -1,53 +1,48 @@
-tools:
-  - name: list_tables
-    description: Lists detailed schema information for tables. If table_names are provided, shows details for those specific tables; otherwise shows all tables in user schemas.
-    parameters:
-      type: object
-      properties:
-        table_names:
-          type: string
-          description: Optional comma-separated list of table names. If empty, details for all tables in user-accessible schemas will be listed.
-      required:
-        - table_names
-    steps:
-      - type: sql
-        query: |
-          SELECT 
-            c.table_schema AS schema_name,
-            c.table_name,
-            c.column_name,
-            c.ordinal_position AS column_position,
-            c.data_type,
-            c.is_nullable,
-            c.column_default
-          FROM 
-            information_schema.columns c
-          WHERE 
-            c.table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_temp_1', 'pg_toast', 'pg_internal')
-            AND (
-              :table_names IS NULL 
-              OR :table_names = ''
-              OR (',' || :table_names || ',') LIKE ('%,' || c.table_name || ',%')
-            )
-          ORDER BY 
-            c.table_schema,
-            c.table_name,
-            c.ordinal_position;
-        params:
-          - name: table_names
-            type: string
-            description: Optional comma-separated list of table names
+sources:
+  redshift:
+    kind: postgres
+    host: ${POSTGRES_HOST}
+    port: ${POSTGRES_PORT}
+    database: ${POSTGRES_DATABASE}
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
 
-  - name: execute_sql
-    description: Execute arbitrary SQL queries against the Redshift database.
+tools:
+  list_tables:
+    kind: postgres-sql
+    source: redshift
+    statement: |
+      SELECT 
+        c.table_schema AS schema_name,
+        c.table_name,
+        c.column_name,
+        c.ordinal_position AS column_position,
+        c.data_type,
+        c.is_nullable,
+        c.column_default
+      FROM 
+        information_schema.columns c
+      WHERE 
+        c.table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_temp_1', 'pg_toast', 'pg_internal')
+        AND (
+          $1::text IS NULL 
+          OR $1::text = ''
+          OR c.table_name = ANY (string_to_array($1::text, ','))
+        )
+      ORDER BY 
+        c.table_schema,
+        c.table_name,
+        c.ordinal_position;
+    description: |
+      Lists detailed schema information for tables. 
+      If table_names are provided, shows details for those specific tables; otherwise shows all tables in user schemas.
     parameters:
-      type: object
-      properties:
-        sql:
-          type: string
-          description: The SQL query to execute.
-      required:
-        - sql
-    steps:
-      - type: sql
-        query: "{{sql}}"
+      - name: table_names
+        type: string
+        description: Optional comma-separated list of table names.
+
+  execute_sql:
+    kind: postgres-execute-sql
+    source: redshift
+    description: |
+      Execute arbitrary SQL against the Redshift database.

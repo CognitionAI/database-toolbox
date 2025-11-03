@@ -1210,67 +1210,7 @@ docker run --rm -i \
 Amazon Redshift is a fast, scalable data warehouse that makes it simple and cost-effective to analyze all your data using standard SQL and your existing business intelligence tools.
 
 > [!Note] 
-> Redshift requires a custom tools configuration file because it doesn't support all PostgreSQL features used in the prebuilt tools (e.g., `array_agg` with `ORDER BY`).
-
-### Creating the Redshift Configuration
-
-First, create a file named `redshift.yaml` with the following content:
-
-```yaml
-tools:
-  - name: list_tables
-    description: Lists detailed schema information for tables. If table_names are provided, shows details for those specific tables; otherwise shows all tables in user schemas.
-    parameters:
-      type: object
-      properties:
-        table_names:
-          type: string
-          description: Optional comma-separated list of table names. If empty, details for all tables in user-accessible schemas will be listed.
-      required:
-        - table_names
-    steps:
-      - type: sql
-        query: |
-          SELECT 
-            c.table_schema AS schema_name,
-            c.table_name,
-            c.column_name,
-            c.ordinal_position AS column_position,
-            c.data_type,
-            c.is_nullable,
-            c.column_default
-          FROM 
-            information_schema.columns c
-          WHERE 
-            c.table_schema NOT IN ('pg_catalog', 'information_schema', 'pg_temp_1', 'pg_toast', 'pg_internal')
-            AND (
-              :table_names IS NULL 
-              OR :table_names = ''
-              OR (',' || :table_names || ',') LIKE ('%,' || c.table_name || ',%')
-            )
-          ORDER BY 
-            c.table_schema,
-            c.table_name,
-            c.ordinal_position;
-        params:
-          - name: table_names
-            type: string
-            description: Optional comma-separated list of table names
-
-  - name: execute_sql
-    description: Execute arbitrary SQL queries against the Redshift database.
-    parameters:
-      type: object
-      properties:
-        sql:
-          type: string
-          description: The SQL query to execute.
-      required:
-        - sql
-    steps:
-      - type: sql
-        query: "{{sql}}"
-```
+> Redshift uses a custom Docker image with pre-configured tools optimized for Redshift's SQL dialect.
 
 ### Docker Command
 
@@ -1280,18 +1220,14 @@ REDSHIFT_DATABASE=mydb \
 REDSHIFT_USER=awsuser \
 REDSHIFT_PASSWORD=your-password \
 REDSHIFT_PORT=5439 \
-REDSHIFT_TOOLS_FILE=/path/to/redshift.yaml \
 docker run --rm -i \
   --name mcp-redshift \
-  -e POSTGRES_HOST=$REDSHIFT_HOST \
-  -e POSTGRES_DATABASE=$REDSHIFT_DATABASE \
-  -e POSTGRES_USER=$REDSHIFT_USER \
-  -e POSTGRES_PASSWORD=$REDSHIFT_PASSWORD \
-  -e POSTGRES_PORT=$REDSHIFT_PORT \
-  -v $REDSHIFT_TOOLS_FILE:/config/redshift.yaml \
-  us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest \
-  --tools-file /config/redshift.yaml \
-  --stdio
+  -e REDSHIFT_HOST \
+  -e REDSHIFT_DATABASE \
+  -e REDSHIFT_USER \
+  -e REDSHIFT_PASSWORD \
+  -e REDSHIFT_PORT \
+  us-central1-docker.pkg.dev/database-toolbox/toolbox/redshift:latest
 ```
 
 ### MCP Client Configuration
@@ -1301,37 +1237,33 @@ docker run --rm -i \
   "command": "docker",
   "args": [
     "run", "--rm", "-i",
-    "-e", "POSTGRES_HOST",
-    "-e", "POSTGRES_DATABASE",
-    "-e", "POSTGRES_USER",
-    "-e", "POSTGRES_PASSWORD",
-    "-e", "POSTGRES_PORT",
-    "-v", "${REDSHIFT_TOOLS_FILE}:/config/redshift.yaml",
-    "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
-    "--tools-file", "/config/redshift.yaml",
-    "--stdio"
+    "-e", "REDSHIFT_HOST",
+    "-e", "REDSHIFT_DATABASE",
+    "-e", "REDSHIFT_USER",
+    "-e", "REDSHIFT_PASSWORD",
+    "-e", "REDSHIFT_PORT",
+    "us-central1-docker.pkg.dev/database-toolbox/toolbox/redshift:latest"
   ],
   "env": {
-    "POSTGRES_HOST": "your-cluster.redshift.amazonaws.com",
-    "POSTGRES_DATABASE": "mydb",
-    "POSTGRES_USER": "awsuser",
-    "POSTGRES_PASSWORD": "your-password",
-    "POSTGRES_PORT": "5439",
-    "REDSHIFT_TOOLS_FILE": "/path/to/redshift.yaml"
+    "REDSHIFT_HOST": "your-cluster.redshift.amazonaws.com",
+    "REDSHIFT_DATABASE": "mydb",
+    "REDSHIFT_USER": "awsuser",
+    "REDSHIFT_PASSWORD": "your-password",
+    "REDSHIFT_PORT": "5439"
   }
 }
 ```
 
 ### Environment Variables
 
-| Variable              | Required | Description                      | Default | Example                               |
-| --------------------- | -------- | -------------------------------- | ------- | ------------------------------------- |
-| `POSTGRES_HOST`       | Yes      | Redshift cluster endpoint        | -       | `your-cluster.redshift.amazonaws.com` |
-| `POSTGRES_PORT`       | No       | Redshift port                    | `5439`  | `5439`                                |
-| `POSTGRES_DATABASE`   | Yes      | Database name                    | -       | `mydb`                                |
-| `POSTGRES_USER`       | Yes      | Username                         | -       | `awsuser`                             |
-| `POSTGRES_PASSWORD`   | Yes      | Password                         | -       | `your-password`                       |
-| `REDSHIFT_TOOLS_FILE` | Yes      | Path to tools configuration YAML | -       | `/path/to/redshift.yaml`              |
+| Variable            | Required | Description               | Default  | Example                               |
+| ------------------- | -------- | ------------------------- | -------- | ------------------------------------- |
+| `REDSHIFT_HOST`     | Yes      | Redshift cluster endpoint | -        | `your-cluster.redshift.amazonaws.com` |
+| `REDSHIFT_PORT`     | No       | Redshift port             | `5439`   | `5439`                                |
+| `REDSHIFT_DATABASE` | Yes      | Database name             | -        | `mydb`                                |
+| `REDSHIFT_USER`     | Yes      | Username                  | -        | `awsuser`                             |
+| `REDSHIFT_PASSWORD` | Yes      | Password                  | -        | `your-password`                       |
+| `REDSHIFT_SSL_MODE` | No       | SSL mode                  | `prefer` | `disable`, `require`, `verify-full`   |
 
 
 ## Snowflake
