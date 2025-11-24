@@ -5,7 +5,7 @@ FROM python:3.12-slim
 # Metadata
 LABEL maintainer="Cognition"
 LABEL description="Snowflake MCP Server with password and key-pair authentication"
-LABEL version="1.0.0"
+LABEL version="1.0.1"
 
 # Set working directory
 WORKDIR /app
@@ -16,8 +16,13 @@ RUN apt-get update && \
     ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python package with no cache to minimize image size
-RUN pip install --no-cache-dir snowflake-labs-mcp
+# Install Python packages with pinned versions to ensure compatibility
+# These versions are tested and known to work together
+RUN pip install --no-cache-dir \
+    cryptography==43.0.3 \
+    pyOpenSSL==24.3.0 \
+    snowflake-connector-python==3.18.0 \
+    snowflake-labs-mcp==1.3.5
 
 # Create non-root user (UID 1000, no home directory, no shell)
 RUN useradd -u 1000 -M -s /usr/sbin/nologin mcp
@@ -30,4 +35,3 @@ USER mcp
 
 # Set entrypoint (exec form)
 ENTRYPOINT ["/entrypoint.sh"]
-
