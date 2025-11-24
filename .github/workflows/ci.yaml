@@ -17,7 +17,7 @@ jobs:
     outputs:
       images: ${{ steps.find.outputs.images }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       
       - name: Find image directories
         id: find
@@ -40,7 +40,7 @@ jobs:
         images: ${{ fromJson(needs.find.outputs.images) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       # - uses: aws-actions/configure-aws-credentials@v5
