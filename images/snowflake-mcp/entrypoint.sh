@@ -43,6 +43,8 @@ Authentication (provide ONE of these):
   --password PASSWORD            Password
   SNOWFLAKE_PASSWORD             Password env var
   SNOWFLAKE_PRIVATE_KEY          Private key PEM content (env var only)
+  SNOWFLAKE_PRIVATE_KEY_FILE_PWD Passphrase for encrypted PKCS#8 keys (env var)
+                                 (alias: SNOWFLAKE_PRIVATE_KEY_PASSPHRASE)
 
 Optional (via env var or CLI):
   --role ROLE                    Snowflake role
@@ -160,23 +162,52 @@ export SNOWFLAKE_USER="$USER"
 if [[ "$HAS_PASSWORD" == true ]]; then
     export SNOWFLAKE_PASSWORD="$PASSWORD"
 elif [[ "$HAS_PRIVATE_KEY" == true ]]; then
-    # Key-pair mode: write private key to secure temp file
-    # Handle both single-line and multi-line PEM formats
+    # Key-pair mode: write private key to secure temp file.
+    # Handle several PEM formats that callers may have flattened:
+    #   1. Properly multi-line PEM (preferred).
+    #   2. PEM with literal `\n` escape sequences instead of real newlines.
+    #   3. Single-line PEM where every newline has been stripped (e.g. by an
+    #      HTML <input type="text"> field). We reconstruct it by wrapping the
+    #      base64 body at 64 columns, which is the standard PEM line length.
     TEMP_KEY_FILE="/tmp/snowflake_key_$$.p8"
-    python3 -c "
+    python3 - "$TEMP_KEY_FILE" <<'PY'
+import os
+import re
 import sys
-key = sys.stdin.read().rstrip()
-# Replace literal \\n escape sequences with actual newlines
-key = key.replace('\\\\n', '\n')
-# If key has no newlines but starts with PEM marker, try to format it
-# (Some keys are stored as single-line, we'll write as-is and let Snowflake handle it)
-sys.stdout.write(key)
+
+key = os.environ.get('SNOWFLAKE_PRIVATE_KEY', '').strip()
+key = key.replace('\\n', '\n')
+
+single_line = re.match(
+    r'^(-----BEGIN [A-Z0-9 ]+-----)(.*?)(-----END [A-Z0-9 ]+-----)$',
+    key,
+    re.DOTALL,
+)
+if single_line and '\n' not in single_line.group(2):
+    header = single_line.group(1)
+    body = re.sub(r'\s+', '', single_line.group(2))
+    footer = single_line.group(3)
+    wrapped = '\n'.join(body[i:i + 64] for i in range(0, len(body), 64))
+    key = f'{header}\n{wrapped}\n{footer}'
+
 if not key.endswith('\n'):
-    sys.stdout.write('\n')
-" <<< "$SNOWFLAKE_PRIVATE_KEY" > "$TEMP_KEY_FILE"
+    key += '\n'
+
+with open(sys.argv[1], 'w') as f:
+    f.write(key)
+PY
     chmod 0600 "$TEMP_KEY_FILE"
-    
+
     export SNOWFLAKE_PRIVATE_KEY_FILE="$TEMP_KEY_FILE"
+
+    # Pass through the passphrase for encrypted PKCS#8 keys.
+    # snowflake-connector reads SNOWFLAKE_PRIVATE_KEY_FILE_PWD directly; we
+    # also accept SNOWFLAKE_PRIVATE_KEY_PASSPHRASE as a more user-friendly
+    # alias.
+    if [[ -z "${SNOWFLAKE_PRIVATE_KEY_FILE_PWD:-}" ]] && \
+       [[ -n "${SNOWFLAKE_PRIVATE_KEY_PASSPHRASE:-}" ]]; then
+        export SNOWFLAKE_PRIVATE_KEY_FILE_PWD="$SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"
+    fi
 fi
 
 # Add optional parameters
