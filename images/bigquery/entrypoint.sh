@@ -45,6 +45,10 @@ main() {
         log "ERROR: Failed to setup Google Cloud credentials"
         exit 1
     fi
+
+    if [[ -n "${BIGQUERY_MAXIMUM_BYTES_BILLED:-}" ]]; then
+        log "Per-query bytes billed cap: ${BIGQUERY_MAXIMUM_BYTES_BILLED}"
+    fi
     
     # Execute the original toolbox with BigQuery prebuilt and passed arguments
     log "Executing BigQuery toolbox with arguments: $*"
