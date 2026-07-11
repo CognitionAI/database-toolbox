@@ -266,11 +266,13 @@ BigQuery is Google Cloud's fully managed, petabyte-scale analytics data warehous
 ```bash
 BIGQUERY_PROJECT=my-project \
 BIGQUERY_DATASET=my_dataset \
+BIGQUERY_MAXIMUM_BYTES_BILLED=1073741824 \
 GOOGLE_APPLICATION_CREDENTIALS=/creds/sa.json \
 docker run --rm -i \
   --name mcp-bigquery \
   -e BIGQUERY_PROJECT \
   -e BIGQUERY_DATASET \
+  -e BIGQUERY_MAXIMUM_BYTES_BILLED \
   -e GOOGLE_APPLICATION_CREDENTIALS \
   -v /path/to/service-account.json:/creds/sa.json \
   us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest \
@@ -289,6 +291,7 @@ docker run --rm -i \
     "-e", "GOOGLE_APPLICATION_CREDENTIALS=/creds/sa.json",
     "-e", "BIGQUERY_PROJECT",
     "-e", "BIGQUERY_DATASET",
+    "-e", "BIGQUERY_MAXIMUM_BYTES_BILLED",
     "us-central1-docker.pkg.dev/database-toolbox/toolbox/toolbox:latest",
     "--prebuilt", "bigquery",
     "--stdio"
@@ -296,6 +299,7 @@ docker run --rm -i \
   "env": {
     "BIGQUERY_PROJECT": "my-project",
     "BIGQUERY_DATASET": "my_dataset",
+    "BIGQUERY_MAXIMUM_BYTES_BILLED": "1073741824",
     "GOOGLE_APPLICATION_CREDENTIALS_PATH": "/path/to/service-account.json"
   }
 }
@@ -308,6 +312,7 @@ docker run --rm -i \
 | `BIGQUERY_PROJECT`                    | Yes      | GCP project ID               | -       | `my-project`                    |
 | `BIGQUERY_DATASET`                    | Yes      | Default dataset              | -       | `my_dataset`                    |
 | `BIGQUERY_LOCATION`                   | No       | BigQuery location            | `US`    | `US`, `EU`                      |
+| `BIGQUERY_MAXIMUM_BYTES_BILLED`       | No       | Per-query bytes scanned cap. Queries exceeding this limit fail before executing. | `0` (no limit) | `1073741824` (1 GiB) |
 | `GOOGLE_APPLICATION_CREDENTIALS_PATH` | Yes      | Path to service account JSON | -       | `/path/to/service-account.json` |
 
 
