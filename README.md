@@ -1271,7 +1271,8 @@ docker run --rm -i \
 Snowflake is a cloud data warehouse platform with support for password and key-pair (JWT) authentication.
 
 > [!Note]
-> Snowflake requires a custom Docker image build. The image supports automatic authentication mode detection.
+> Snowflake requires a custom Docker image build. The image supports automatic authentication mode detection and
+> applies a read-only query policy in front of the upstream MCP server (see [Query Policy](#query-policy)).
 
 ### Building the Image
 
@@ -1288,7 +1289,7 @@ docker run --rm -i \
   mcp-snowflake:local \
   --account myaccount \
   --user myuser \
-  --role ACCOUNTADMIN \
+  --role MCP_READONLY \
   --warehouse COMPUTE_WH \
   --database ANALYTICS_DB \
   --schema PUBLIC
@@ -1302,7 +1303,7 @@ docker run --rm -i \
   mcp-snowflake:local \
   --account myaccount \
   --user svc_mcp_user \
-  --role ACCOUNTADMIN \
+  --role MCP_READONLY \
   --warehouse COMPUTE_WH \
   --database ANALYTICS_DB \
   --schema PUBLIC
@@ -1310,13 +1311,37 @@ docker run --rm -i \
 
 ### Environment Variables
 
-| Variable                 | Required          | Description                              | Default | Example             |
-| ------------------------ | ----------------- | ---------------------------------------- | ------- | ------------------- |
-| `SNOWFLAKE_PASSWORD`     | For password auth | Password for authentication              | -       | `your-password`     |
-| `SNOWFLAKE_PRIVATE_KEY`  | For key-pair auth | Unencrypted private key PEM content      | -       | `$(cat rsa_key.p8)` |
+| Variable                          | Required          | Description                                                                 | Default                    | Example                      |
+| --------------------------------- | ----------------- | --------------------------------------------------------------------------- | -------------------------- | ---------------------------- |
+| `SNOWFLAKE_PASSWORD`              | For password auth | Password for authentication                                                 | -                          | `your-password`              |
+| `SNOWFLAKE_PRIVATE_KEY`           | For key-pair auth | Unencrypted private key PEM content                                         | -                          | `$(cat rsa_key.p8)`          |
+| `SNOWFLAKE_MCP_ALLOWED_FUNCTIONS` | No                | Comma-separated function names permitted in addition to the built-in list   | -                          | `MY_DB.PUBLIC.MY_UDF,GET_DDL`|
+| `SNOWFLAKE_MCP_UNKNOWN_FUNCTIONS` | No                | `allow` or `deny` functions the policy does not recognize                   | `deny`                     | `allow`                      |
+| `SNOWFLAKE_MCP_SERVICE_CONFIG`    | No                | Path to an alternative upstream service configuration file inside the image | `/app/service_config.yaml` | `/config/services.yaml`      |
 
 > [!Tip]
 > Authentication mode is auto-detected based on provided credentials. The image defaults to `stdio` transport. Private keys must be unencrypted.
+
+### Query Policy
+
+The image runs the upstream server through a thin wrapper (`images/snowflake-mcp/snowflake_mcp_guard`) that checks every
+`run_snowflake_query` statement before it is sent to Snowflake, in addition to the upstream statement-type permissions
+in `images/snowflake-mcp/service_config.yaml`:
+
+- Exactly one statement per request; statements that cannot be parsed are refused.
+- Only read-oriented statement types are executed (`SELECT` and set operations, `SHOW`, `DESCRIBE`, `USE`).
+- `SYSTEM$` functions are limited to a built-in list of information-only functions.
+- Other functions must be known to the SQL parser or be on a built-in list of read-only Snowflake built-ins.
+  Add your own functions with `SNOWFLAKE_MCP_ALLOWED_FUNCTIONS` (bare or fully qualified names), or set
+  `SNOWFLAKE_MCP_UNKNOWN_FUNCTIONS=allow` to accept unrecognized non-`SYSTEM$` functions.
+
+> [!Important]
+> The query policy is defense in depth, not an authorization boundary. Run the server with a dedicated
+> least-privilege role (for example `MCP_READONLY`) that has only the `USAGE`/`SELECT` grants it needs, and never
+> with `ACCOUNTADMIN` or another administrative role.
+
+Dependencies are pinned in `images/snowflake-mcp/requirements.txt`; `tests/snowflake/test.sh` runs the policy
+regression tests against the same pins and a smoke check inside the built image.
 
 
 ## Spanner
