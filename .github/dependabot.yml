@@ -4,3 +4,20 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "docker"
+    directories:
+      - "/images/alloydb-postgres"
+      - "/images/bigquery"
+      - "/images/cloud-sql-mssql"
+      - "/images/cloud-sql-mysql"
+      - "/images/cloud-sql-postgres"
+      - "/images/dataplex"
+      - "/images/firestore"
+      - "/images/redshift"
+      - "/images/spanner"
+    schedule:
+      interval: "weekly"
+    groups:
+      toolbox-base:
+        patterns:
+          - "*"

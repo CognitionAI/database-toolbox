@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly rebuild so published images pick up refreshed base layers even
+    # when nothing changed in this repository.
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions: {}
 
 env:
   AWS_REGION: us-east-1
@@ -14,20 +23,95 @@ jobs:
   find:
     name: Discover Images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       images: ${{ steps.find.outputs.images }}
     steps:
-      - uses: actions/checkout@v5
-      
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Find image directories
         id: find
         run: |
-          IMAGES=$(echo [$(find images -maxdepth 1 -mindepth 1 -type d -printf '{"dir":"%f"},\n' | sed '$ s/,$//')] | jq -c .)
+          IMAGES=$(echo [$(find images -maxdepth 1 -mindepth 1 -type d -printf '{"dir":"%f"},\n' | sort | sed '$ s/,$//')] | jq -c .)
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
           echo "Found images: $IMAGES"
+
+  verify:
+    name: Build and Verify
+    needs: find
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        images: ${{ fromJson(needs.find.outputs.images) }}
+        platform: [linux/amd64, linux/arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build image (not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./images/${{ matrix.images.dir }}
+          file: ./images/${{ matrix.images.dir }}/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: verify/${{ matrix.images.dir }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.images.dir }}
+
+      - name: Smoke test image
+        run: |
+          .github/scripts/verify-image.sh \
+            "verify/${{ matrix.images.dir }}:${{ github.sha }}" \
+            "images/${{ matrix.images.dir }}/Dockerfile" \
+            "${{ matrix.platform }}"
+
+      - name: Scan image (report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+        with:
+          image-ref: verify/${{ matrix.images.dir }}:${{ github.sha }}
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          output: trivy-report.txt
+          exit-code: '0'
+
+      - name: Publish scan report to job summary
+        run: |
+          {
+            echo "### Vulnerability scan: ${{ matrix.images.dir }} (${{ matrix.platform }})"
+            echo
+            echo '```'
+            cat trivy-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Scan image (gate on critical findings with a fix available)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+        with:
+          image-ref: verify/${{ matrix.images.dir }}:${{ github.sha }}
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          skip-setup-trivy: true
+          exit-code: '1'
+
   build:
     name: Build Database Toolboxes
-    needs: find
+    # Publishing never happens for pull requests; only pushes to main, release
+    # tags, the weekly schedule and manual runs produce registry artifacts.
+    if: github.event_name != 'pull_request'
+    needs: [find, verify]
     environment: production
     permissions:
       contents: read
@@ -40,9 +124,9 @@ jobs:
         images: ${{ fromJson(needs.find.outputs.images) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # - uses: aws-actions/configure-aws-credentials@v5
       #   with:
       #     role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -50,13 +134,21 @@ jobs:
       # - uses: aws-actions/amazon-ecr-login@v2
       #   with:
       #     registry-type: public
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read pinned base version
+        id: base
+        run: |
+          VERSION=$(sed -nE 's#^FROM us-central1-docker\.pkg\.dev/database-toolbox/toolbox/toolbox:([0-9]+\.[0-9]+\.[0-9]+)(@sha256:[0-9a-f]{64})?[[:space:]]*$#\1#p' "images/${{ matrix.images.dir }}/Dockerfile" | head -n1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Pinned base version: ${VERSION:-<none>}"
+
       - id: metadata
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           # ${{ env.ECR_REGISTRY }}/database-toolbox/${{ matrix.images.dir }}
           images: |
@@ -67,13 +159,17 @@ jobs:
             type=semver,pattern={{major}}
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
+            type=raw,value=sha-{{sha}}-{{date 'YYYYMMDD-HHmmss'}},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.base.outputs.version }},enable=${{ steps.base.outputs.version != '' && github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.base.outputs.version }}-{{date 'YYYYMMDD'}},enable=${{ steps.base.outputs.version != '' && github.ref == 'refs/heads/main' }}
           flavor: |
             latest=auto
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
-      
-      - name: Build and push to staging ECR
-        uses: docker/build-push-action@v6
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./images/${{ matrix.images.dir }}
           file: ./images/${{ matrix.images.dir }}/Dockerfile
@@ -85,7 +181,27 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.images.dir }}
           provenance: true
           sbom: true
-      
+
+      - name: Verify published artifact
+        env:
+          IMAGE: ${{ env.GHCR_REGISTRY }}/${{ github.repository }}/${{ matrix.images.dir }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          IMAGE="${IMAGE,,}"
+          for platform in linux/amd64 linux/arm64; do
+            .github/scripts/verify-image.sh "${IMAGE}@${DIGEST}" "images/${{ matrix.images.dir }}/Dockerfile" "$platform"
+          done
+          {
+            echo "### ${{ matrix.images.dir }}"
+            echo
+            echo "Immutable reference: \`${IMAGE}@${DIGEST}\`"
+            echo
+            echo "Tags:"
+            echo '```'
+            echo "${{ steps.metadata.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Make package public
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,10 +209,10 @@ jobs:
           # Note: GitHub's package visibility API is not reliable/documented
           # This step attempts to set visibility, but may require manual action
           sleep 3
-          
+
           PACKAGE_NAME="${{ matrix.images.dir }}"
           REPO="${{ github.repository }}"
-          
+
           echo "📦 Package published: ghcr.io/${REPO,,}/${PACKAGE_NAME}"
           echo "⚠️  Package is PRIVATE by default - make it public manually:"
           echo "   https://github.com/${REPO}/pkgs/container/${PACKAGE_NAME}"
