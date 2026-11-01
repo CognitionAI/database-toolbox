@@ -1,0 +1,7 @@
+# Pinned runtime dependencies for the Snowflake MCP image.
+# tests/snowflake installs this same file so the test environment matches the image.
+cryptography==43.0.3
+pyOpenSSL==24.3.0
+snowflake-connector-python==3.18.1
+snowflake-labs-mcp==1.3.5
+sqlglot==29.0.1

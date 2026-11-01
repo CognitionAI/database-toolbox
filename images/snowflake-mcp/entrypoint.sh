@@ -13,9 +13,6 @@ cleanup() {
     if [[ -n "${TEMP_KEY_FILE:-}" ]] && [[ -f "$TEMP_KEY_FILE" ]]; then
         rm -f "$TEMP_KEY_FILE"
     fi
-    if [[ -n "${CONFIG_FILE:-}" ]] && [[ -f "$CONFIG_FILE" ]]; then
-        rm -f "$CONFIG_FILE"
-    fi
 }
 trap cleanup EXIT
 
@@ -58,6 +55,12 @@ Optional (via env var or CLI):
   SNOWFLAKE_SCHEMA               Environment variable for schema
 
   --transport TYPE               Transport type (default: stdio)
+
+Query policy (env vars only):
+  SNOWFLAKE_MCP_ALLOWED_FUNCTIONS  Comma-separated function names to permit in
+                                   addition to the built-in read-only list
+  SNOWFLAKE_MCP_UNKNOWN_FUNCTIONS  allow|deny functions not known to the policy
+                                   (default: deny; SYSTEM$ functions stay restricted)
 
 EOF
     exit 1
@@ -196,49 +199,18 @@ if [[ -n "$SCHEMA" ]]; then
     export SNOWFLAKE_SCHEMA="$SCHEMA"
 fi
 
-# Create service config file with default tools enabled
-CONFIG_FILE="/tmp/snowflake_service_config_$$.yaml"
-cat > "$CONFIG_FILE" <<'EOF'
-agent_services: []
-search_services: []
-analyst_services: []
+# Service configuration (read-only statement types, query manager only)
+CONFIG_FILE="${SNOWFLAKE_MCP_SERVICE_CONFIG:-/app/service_config.yaml}"
+if [[ ! -r "$CONFIG_FILE" ]]; then
+    log_error "Service configuration file not found: $CONFIG_FILE"
+    exit 1
+fi
 
-other_services:
-  object_manager: false
-  query_manager: true
-  semantic_manager: false
-
-sql_statement_permissions:
-  - Select: true
-  - Show: true
-  - Describe: true
-  - Explain: true
-  - Use: true
-  - Create: false
-  - Alter: false
-  - Drop: false
-  - Insert: false
-  - Update: false
-  - Delete: false
-  - Merge: false
-  - TruncateTable: false
-  - Grant: false
-  - Revoke: false
-  - Commit: false
-  - Rollback: false
-  - Transaction: false
-  - Command: false
-  - Comment: false
-  - Unknown: false
-EOF
-
-chmod 0600 "$CONFIG_FILE"
-
-# Build snowflake-labs-mcp command
+# Build server command
 CMD_ARGS=()
 CMD_ARGS+=("--service-config-file" "$CONFIG_FILE")
 CMD_ARGS+=("--transport" "$TRANSPORT")
 
-# Execute the MCP server (replace shell process)
-exec snowflake-labs-mcp "${CMD_ARGS[@]}"
+# Execute the MCP server through the query policy wrapper (replace shell process)
+exec python3 -m snowflake_mcp_guard "${CMD_ARGS[@]}"
 

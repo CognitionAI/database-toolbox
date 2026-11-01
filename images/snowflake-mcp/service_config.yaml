@@ -1,0 +1,37 @@
+# snowflake-labs-mcp service configuration used by the image entrypoint.
+# Only the query manager is enabled, restricted to read-oriented statement types.
+# The statement-level checks in snowflake_mcp_guard run in addition to this list.
+agent_services: []
+search_services: []
+analyst_services: []
+
+other_services:
+  object_manager: false
+  query_manager: true
+  semantic_manager: false
+
+sql_statement_permissions:
+  - Select: true
+  - Union: true
+  - Intersect: true
+  - Except: true
+  - Show: true
+  - Describe: true
+  - Explain: true
+  - Use: true
+  - Create: false
+  - Alter: false
+  - Drop: false
+  - Insert: false
+  - Update: false
+  - Delete: false
+  - Merge: false
+  - TruncateTable: false
+  - Grant: false
+  - Revoke: false
+  - Commit: false
+  - Rollback: false
+  - Transaction: false
+  - Command: false
+  - Comment: false
+  - Unknown: false

@@ -8,11 +8,7 @@ cd "$SCRIPT_DIR"
 echo "=== Snowflake MCP Server - Comprehensive Test Suite (pytest) ==="
 echo
 
-# Check if .env file exists
-if [[ ! -f .env ]]; then
-    echo "✗ .env file not found. Please create one based on .env.example"
-    exit 1
-fi
+IMAGE_DIR="$SCRIPT_DIR/../../images/snowflake-mcp"
 
 # Check if Docker image exists
 if ! docker image inspect mcp-snowflake:local >/dev/null 2>&1; then
@@ -21,26 +17,36 @@ if ! docker image inspect mcp-snowflake:local >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check if pytest is installed
-if ! python3 -m pytest --version >/dev/null 2>&1; then
-    echo "Installing pytest in virtual environment..."
-    # Create venv if it doesn't exist
-    if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
-    fi
-    source .venv/bin/activate
-    pip install -q pytest
-    echo "✓ pytest installed"
+# Test environment: same pinned dependencies as the image, plus pytest
+if [ ! -d ".venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv .venv
 fi
-
-echo "Running tests with pytest..."
-echo "All tests use the Docker image: mcp-snowflake:local"
+source .venv/bin/activate
+pip install -q -r "$IMAGE_DIR/requirements.txt" pytest pytest-timeout
+echo "✓ Test dependencies installed"
 echo
 
-# Activate venv if it exists and run pytest
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
+echo "Running query policy tests (no credentials required)..."
+python3 -m pytest test_query_policy.py -v --tb=short --color=yes --timeout=60 -x
+echo
+
+echo "Running smoke check inside the Docker image..."
+docker run --rm --entrypoint python3 \
+    -v "$SCRIPT_DIR/image_smoke_check.py:/tmp/image_smoke_check.py:ro" \
+    -v "$IMAGE_DIR/requirements.txt:/tmp/requirements.txt:ro" \
+    mcp-snowflake:local /tmp/image_smoke_check.py /tmp/requirements.txt
+echo
+
+# Connection tests need credentials
+if [[ ! -f .env ]]; then
+    echo "✗ .env file not found; skipping connection tests. Create one based on .env.example to run them."
+    exit 0
 fi
+
+echo "Running connection tests with pytest..."
+echo "All tests use the Docker image: mcp-snowflake:local"
+echo
 
 # Run tests with pytest - verbose, show progress, timeout per test
 # Connection tests have 60s timeout, error tests are fast
